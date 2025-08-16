@@ -2,23 +2,23 @@
 #include <PubSubClient.h>
 #include <max6675.h>
 
-// Konfigurasi PIN Sensor
-int ktcSO = 15;  // D6
-int ktcCS = 2;  // D8
-int ktcCLK = 4; // D5
+// Konfigurasi PIN Sensor - PERBAIKAN: Urutan parameter yang benar
+int ktcSO = 19;  // MISO
+int ktcCS = 5;   // CS
+int ktcCLK = 18; // SCK
 
-MAX6675 thermocouple(ktcSO, ktcCS, ktcCLK);
+// PERBAIKAN: Constructor MAX6675 dengan urutan yang benar (CLK, CS, SO)
+MAX6675 thermocouple(ktcCLK, ktcCS, ktcSO);
 
 // Setup WiFi
 const char* ssid = "WIJAYA";
 const char* password = "wijaya21";
 
 // Setup MQTT
-const char* mqtt_server = "broker.emqx.io"; // atau IP broker lokal
+const char* mqtt_server = "broker.emqx.io";
 const int mqtt_port = 1883;
 const char* topic = "esp32/suhu";
 
-// Register WiFi Client and PubSubClien
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -41,16 +41,14 @@ void setup_wifi() {
 }
 
 void reconnect() {
-  // Loop sampai terkoneksi
   while (!client.connected()) {
     Serial.print("Menghubungkan ke MQTT...");
-    // ClientID harus unik, jadi tambahkan random number
     String clientId = "ESP32Client-" + String(random(0xffff), HEX);
 
-    // connect tanpa username & password
     if (client.connect(clientId.c_str())) {
       Serial.println("Terhubung!");
-      client.subscribe(topic);
+      // Optional: subscribe jika perlu menerima data
+      // client.subscribe(topic);
     } else {
       Serial.print("Gagal, rc=");
       Serial.print(client.state());
@@ -62,16 +60,14 @@ void reconnect() {
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("Memulai ESP32 MAX6675 MQTT...");
+  
   setup_wifi();
   client.setServer(mqtt_server, mqtt_port);
 
-  // Paksa gunakan MQTT 3.1.1
-  #ifdef MQTT_VERSION
-  #undef MQTT_VERSION
-  #define MQTT_VERSION MQTT_VERSION_3_1_1
-  #endif
-
-  delay(2000); // MAX6675 butuh waktu start
+  // PERBAIKAN: Berikan waktu yang cukup untuk MAX6675 initialization
+  Serial.println("Menunggu MAX6675 siap...");
+  delay(3000);
 }
 
 void loop() {
@@ -80,15 +76,40 @@ void loop() {
   }
   client.loop();
 
-  // Baca suhu dari MAX6675
+  // PERBAIKAN: Baca suhu dengan error checking
   float suhu = thermocouple.readCelsius();
+  
+  // PERBAIKAN: Validasi pembacaan sensor
+  if (isnan(suhu) || suhu == 0.0) {
+    Serial.println("Error: Tidak bisa membaca sensor MAX6675!");
+    delay(000);
+    return;
+  }
+
+  // PERBAIKAN: Cek apakah suhu dalam range wajar
+  if (suhu < -50 || suhu > 1000) {
+    Serial.println("Error: Pembacaan suhu tidak valid!");
+    Serial.print("Suhu terbaca: ");
+    Serial.println(suhu);
+    delay(1000);
+    return;
+  }
+
   Serial.print("Suhu: ");
-  Serial.println(suhu);
+  Serial.print(suhu);
+  Serial.println(" °C");
 
   // Kirim ke MQTT
   char msg[50];
   dtostrf(suhu, 6, 2, msg);
-  client.publish(topic, msg);
+  
+  if (client.publish(topic, msg)) {
+    Serial.print("Data terkirim ke MQTT: ");
+    Serial.println(msg);
+  } else {
+    Serial.println("Gagal kirim data ke MQTT!");
+  }
 
-  delay(2000); // kirim setiap 2 detik
+  // PERBAIKAN: Delay yang cukup untuk MAX6675 (minimal 250ms antar pembacaan)
+  delay(3000);
 }
