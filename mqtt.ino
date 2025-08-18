@@ -11,12 +11,12 @@ int ktcCLK = 18; // SCK
 MAX6675 thermocouple(ktcCLK, ktcCS, ktcSO);
 
 // Setup WiFi
-const char* ssid = "WIJAYA";
-const char* password = "wijaya21";
+const char* ssid = "your_wifi_name";
+const char* password = "your_wifi_password";
 
 // Setup MQTT
-const char* mqtt_server = "broker.emqx.io";
-const int mqtt_port = 1883;
+const char* mqtt_server = "your_mqtt_server";
+const int mqtt_port = "your_mqtt_port";
 const char* topic = "esp32/suhu";
 
 WiFiClient espClient;
