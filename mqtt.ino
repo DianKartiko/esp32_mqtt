@@ -1,35 +1,28 @@
 #include <WiFi.h>
-#include <PubSubClient.h>
+#include <HTTPClient.h>
 #include <max6675.h>
 
-// Konfigurasi PIN Sensor - PERBAIKAN: Urutan parameter yang benar
-int ktcSO = 19;  // MISO
-int ktcCS = 5;   // CS
-int ktcCLK = 18; // SCK
+// Konfigurasi PIN Sensor MAX6675
+int ktcSO = 15;  // MISO
+int ktcCS = 2;   // CS
+int ktcCLK = 4;  // SCK
 
-// PERBAIKAN: Constructor MAX6675 dengan urutan yang benar (CLK, CS, SO)
 MAX6675 thermocouple(ktcCLK, ktcCS, ktcSO);
 
-// Setup WiFi
-const char* ssid = "your_wifi_name";
-const char* password = "your_wifi_password";
+// Konfigurasi WiFi
+const char* ssid = "monitoring ";
+const char* password = "wijaya21";
 
-// Setup MQTT
-const char* mqtt_server = "your_mqtt_server";
-const int mqtt_port = "your_mqtt_port";
-const char* topic = "esp32/suhu";
+// Ganti dengan URL API Flask kamu di Fly.io
+const char* serverUrl = "https://your-app.fly.dev/data";  
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+void setup() {
+  Serial.begin(115200);
+  Serial.println("Memulai ESP32 MAX6675 HTTP...");
 
-void setup_wifi() {
-  delay(10);
-  Serial.println();
-  Serial.print("Menghubungkan ke WiFi ");
-  Serial.println(ssid);
-
+  // Hubungkan WiFi
   WiFi.begin(ssid, password);
-
+  Serial.print("Menghubungkan ke WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -38,55 +31,22 @@ void setup_wifi() {
   Serial.println("WiFi terhubung");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
-}
 
-void reconnect() {
-  while (!client.connected()) {
-    Serial.print("Menghubungkan ke MQTT...");
-    String clientId = "ESP32Client-" + String(random(0xffff), HEX);
-
-    if (client.connect(clientId.c_str())) {
-      Serial.println("Terhubung!");
-      // Optional: subscribe jika perlu menerima data
-      // client.subscribe(topic);
-    } else {
-      Serial.print("Gagal, rc=");
-      Serial.print(client.state());
-      Serial.println(" coba lagi dalam 5 detik");
-      delay(5000);
-    }
-  }
-}
-
-void setup() {
-  Serial.begin(115200);
-  Serial.println("Memulai ESP32 MAX6675 MQTT...");
-  
-  setup_wifi();
-  client.setServer(mqtt_server, mqtt_port);
-
-  // PERBAIKAN: Berikan waktu yang cukup untuk MAX6675 initialization
+  // Tunggu sensor siap
   Serial.println("Menunggu MAX6675 siap...");
   delay(3000);
 }
 
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-
-  // PERBAIKAN: Baca suhu dengan error checking
+  // Baca suhu dari MAX6675
   float suhu = thermocouple.readCelsius();
-  
-  // PERBAIKAN: Validasi pembacaan sensor
+
   if (isnan(suhu) || suhu == 0.0) {
     Serial.println("Error: Tidak bisa membaca sensor MAX6675!");
-    delay(000);
+    delay(1000);
     return;
   }
 
-  // PERBAIKAN: Cek apakah suhu dalam range wajar
   if (suhu < -50 || suhu > 1000) {
     Serial.println("Error: Pembacaan suhu tidak valid!");
     Serial.print("Suhu terbaca: ");
@@ -99,17 +59,31 @@ void loop() {
   Serial.print(suhu);
   Serial.println(" °C");
 
-  // Kirim ke MQTT
-  char msg[50];
-  dtostrf(suhu, 6, 2, msg);
-  
-  if (client.publish(topic, msg)) {
-    Serial.print("Data terkirim ke MQTT: ");
-    Serial.println(msg);
+  // Kirim data via HTTP POST
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(serverUrl);
+    http.addHeader("Content-Type", "application/json");
+
+    String jsonData = "{\"suhu\": " + String(suhu, 2) + "}";
+
+    int httpResponseCode = http.POST(jsonData);
+
+    if (httpResponseCode > 0) {
+      String response = http.getString();
+      Serial.print("Response Code: ");
+      Serial.println(httpResponseCode);
+      Serial.print("Response: ");
+      Serial.println(response);
+    } else {
+      Serial.print("Error on sending POST: ");
+      Serial.println(httpResponseCode);
+    }
+
+    http.end();
   } else {
-    Serial.println("Gagal kirim data ke MQTT!");
+    Serial.println("WiFi tidak terhubung!");
   }
 
-  // PERBAIKAN: Delay yang cukup untuk MAX6675 (minimal 250ms antar pembacaan)
-  delay(3000);
+  delay(5000); // kirim data tiap 5 detik
 }
