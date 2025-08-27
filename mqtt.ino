@@ -10,8 +10,8 @@ int ktcCLK = 4;  // SCK
 MAX6675 thermocouple(ktcCLK, ktcCS, ktcSO);
 
 // Konfigurasi WiFi
-const char* ssid = "monitoring ";
-const char* password = "wijaya21";
+const char* ssid = "your_ssid";
+const char* password = "your_password";
 
 // Ganti dengan URL API Flask kamu di Fly.io
 const char* serverUrl = "https://your-app.fly.dev/data";  
