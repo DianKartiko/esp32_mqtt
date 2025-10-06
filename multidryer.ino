@@ -28,7 +28,7 @@ const char* data_file2 = "/data_suhu2.txt";  // File penyimpanan untuk sensor 2
 const char* ssid = "SSID";
 const char* password = "PASSWORD";
 const char* mqtt_server = "YOUR_SERVE OR LOCAL SERVER"; // Ganti dengan IP Broker MQTT lokal Anda
-const int mqtt_port = 1883;
+const int mqtt_port = PORT;
 
 // =================================================================
 // --- VARIABEL GLOBAL & TIMER ---
